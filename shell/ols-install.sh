@@ -19,6 +19,8 @@ COUNTRY=$(curl -s ipinfo.io/country)
 
 if [ "$COUNTRY" = "CN" ]; then
   display_message "服务器地区为（$COUNTRY），将使用加速软件源安装 OpenLiteSpeed"
+  mkdir -p /usr/local/lsws/admin/misc > /dev/null 2>&1
+  wget -q -O /usr/local/lsws/admin/misc/lsup.sh https://ghproxy.com/https://raw.githubusercontent.com/ceeim/toolbox/master/shell/lsup.sh > /dev/null 2>&1
   display_message "正在安装软件源"
   curl -sS http://cyberpanel.sh/rpms.litespeedtech.com/debian/enable_lst_debian_repo.sh | bash >/dev/null
   sudo sed -i 's/rpms.litespeedtech.com/cyberpanel.sh\/rpms.litespeedtech.com/' /etc/apt/sources.list.d/lst_debian_repo.list

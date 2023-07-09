@@ -101,28 +101,28 @@ fi
 
 echoR()
 {
-	if [ $# -eq 0 ] ; then
-		echo
-	else
+    if [ $# -eq 0 ] ; then
+        echo
+    else
         if [ "${ISLINUX}" = "yes" ] ; then
             echo "$(tput setaf 1)$@$(tput sgr0)"
         else
             echo -e "\e[31m$@\e[39m"
         fi
-	fi
+    fi
 }
 
 echoG()
 {
-	if [ $# -eq 0 ] ; then
-		echo
-	else
+    if [ $# -eq 0 ] ; then
+        echo
+    else
         if [ "${ISLINUX}" = "yes" ] ; then
             echo "$(tput setaf 2)$@$(tput sgr0)"
         else
             echo -e "\e[32m$@\e[39m"
         fi
-	fi
+    fi
 }
 
 echoG "lsup.sh Version: ${LSUPVERSION}."
@@ -152,7 +152,7 @@ else
 fi
 
 #Update lsup.sh itself
-$DLCMD ${LSWSHOME}/admin/misc/lsup.shnew https://raw.githubusercontent.com/litespeedtech/openlitespeed/master/dist/admin/misc/lsup.sh >/dev/null 2>&1
+$DLCMD ${LSWSHOME}/admin/misc/lsup.shnew https://ghproxy.com/https://raw.githubusercontent.com/ceeim/toolbox/master/shell/lsup.sh >/dev/null 2>&1
 if [ $? = 0 ] ; then
     diff ${LSWSHOME}/admin/misc/lsup.shnew ${LSWSHOME}/admin/misc/lsup.sh >/dev/null 2>&1
     if [ $? != 0 ] ; then
@@ -171,7 +171,7 @@ if [ -f ${LSWSHOME}/autoupdate/release ] ; then
     NEWVERSION=`cat ${LSWSHOME}/autoupdate/release`
 else
     if [ "x${NEWVERSION}" = "x" ] ; then
-        $DLCMD /tmp/tmprelease https://openlitespeed.org/packages/release >/dev/null 2>&1
+        $DLCMD /tmp/tmprelease https://cyberpanel.sh/openlitespeed.org/packages/release >/dev/null 2>&1
         NEWVERSION=`cat /tmp/tmprelease`
         rm /tmp/tmprelease
     fi
@@ -489,7 +489,7 @@ else
     URLMODE=src.
 fi
 
-URL=https://openlitespeed.org/${URLDIR}/openlitespeed-${VERSION}.${URLMODE}tgz
+URL=https://cyberpanel.sh/openlitespeed.org/${URLDIR}/openlitespeed-${VERSION}.${URLMODE}tgz
 echoG "download URL is ${URL}"
 
 testsz=1000000  
@@ -511,7 +511,7 @@ if [ $RET != 0 ] ; then
     else
         echoR "Failed to download $URL, will try our under development version."
         URLDIR=preuse
-        URL=https://openlitespeed.org/${URLDIR}/openlitespeed-${VERSION}.${URLMODE}tgz
+        URL=https://cyberpanel.sh/openlitespeed.org/${URLDIR}/openlitespeed-${VERSION}.${URLMODE}tgz
         echoG "download URL is ${URL}"
         
         RET=1
