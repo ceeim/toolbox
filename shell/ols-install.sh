@@ -39,7 +39,7 @@ cd "${HOME}/openlitespeed"
 sudo ./install.sh
 
 display_message "正在安装 LSPHP"
-sudo apt-get install -y lsphp74 lsphp74-* lsphp81 lsphp81-* lsphp82 lsphp82-* >/dev/null
+sudo apt-get install -y lsphp74 lsphp74-* lsphp80 lsphp80-* lsphp81 lsphp81-* lsphp82 lsphp82-* >/dev/null
 
 display_message "OpenLiteSpeed 安装完成"
 echo -e "控制台地址: https://$IP:7080"
