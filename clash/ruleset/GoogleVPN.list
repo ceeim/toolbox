@@ -2,8 +2,20 @@
 # Google One VPN & Google Fi VPN
 # 作者: Cee  主页: https://cee.im
 
-DOMAIN-SUFFIX,cloud.cupronickel.goog
+DOMAIN,cloud.cupronickel.goog
+DOMAIN,scone-pa.googleapis.com
+DOMAIN,quake-pa.googleapis.com
+DOMAIN,phosphor-pa.googleapis.com
+DOMAIN,subscriptionsmanagement-pa.googleapis.com
+DOMAIN,subscriptionsmobile-pa.googleapis.com
+DOMAIN,federatedml-pa.googleapis.com
+DOMAIN,na.b.g-tun.com
+DOMAIN,userlocation.googleapis.com
+DOMAIN,connectivitycheck.gstatic.com
+DOMAIN,firebaseremoteconfig.googleapis.com
+DOMAIN-SUFFIX,cupronickel.goog
 DOMAIN-SUFFIX,googleapis.com
+DOMAIN-SUFFIX,gstatic.com
 DOMAIN-SUFFIX,g-tun.com
 IP-CIDR,136.22.64.0/24,no-resolve
 IP-CIDR,136.22.65.0/24,no-resolve
