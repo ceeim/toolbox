@@ -3,9 +3,11 @@
 # 作者: Cee  主页: https://cee.im
 
 DOMAIN-KEYWORD,openai
+DOMAIN-KEYWORD,chatgpt
 DOMAIN-KEYWORD,anthropic
 DOMAIN-KEYWORD,claude
 DOMAIN-SUFFIX,ai.com
+DOMAIN-SUFFIX,chatgpt.com
 DOMAIN-SUFFIX,auth0.com
 DOMAIN-SUFFIX,challenges.cloudflare.com
 DOMAIN-SUFFIX,client-api.arkoselabs.com
