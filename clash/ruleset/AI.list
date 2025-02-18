@@ -2,31 +2,99 @@
 # AI 服务
 # 作者: Cee  主页: https://cee.im
 
-DOMAIN-KEYWORD,openai
-DOMAIN-KEYWORD,chatgpt
+# Gemini & Bard
+DOMAIN,ai.google.dev
+DOMAIN-KEYWORD,alkalimakersuite
+DOMAIN,generativelanguage.googleapis.com
+DOMAIN,makersuite.google.com
+DOMAIN-KEYWORD,colab
+DOMAIN-KEYWORD,developerprofiles
+DOMAIN-KEYWORD,generativelanguage
+DOMAIN-SUFFIX,apis.google.com
+DOMAIN-SUFFIX,bard.google.com
+DOMAIN-SUFFIX,deepmind.com
+DOMAIN-SUFFIX,deepmind.google
+DOMAIN-SUFFIX,gemini.google.com
+DOMAIN-SUFFIX,generativeai.google
+DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com
+# Claude
+DOMAIN,cdn.usefathom.com
 DOMAIN-KEYWORD,anthropic
 DOMAIN-KEYWORD,claude
+# OpenAI
+DOMAIN-KEYWORD,openai
+DOMAIN-KEYWORD,chatgpt
+DOMAIN-SUFFIX,chat.com
+DOMAIN-SUFFIX,openaiapi-site.azureedge.net
+DOMAIN-SUFFIX,sora.com
+DOMAIN,browser-intake-datadoghq.com
+DOMAIN,chat.openai.com.cdn.cloudflare.net
+DOMAIN,static.cloudflareinsights.com
 DOMAIN-SUFFIX,ai.com
-DOMAIN-SUFFIX,chatgpt.com
+DOMAIN-SUFFIX,algolia.net
+DOMAIN-SUFFIX,api.statsig.com
 DOMAIN-SUFFIX,auth0.com
-DOMAIN-SUFFIX,challenges.cloudflare.com
 DOMAIN-SUFFIX,client-api.arkoselabs.com
 DOMAIN-SUFFIX,events.statsigapi.net
 DOMAIN-SUFFIX,featuregates.org
+DOMAIN-SUFFIX,livekit.cloud
 DOMAIN-SUFFIX,identrust.com
 DOMAIN-SUFFIX,intercom.io
 DOMAIN-SUFFIX,intercomcdn.com
+DOMAIN-SUFFIX,launchdarkly.com
 DOMAIN-SUFFIX,oaistatic.com
 DOMAIN-SUFFIX,oaiusercontent.com
-DOMAIN-SUFFIX,openai.com
-DOMAIN-SUFFIX,openaiapi-site.azureedge.net
+DOMAIN-SUFFIX,observeit.net
+DOMAIN-SUFFIX,segment.io
 DOMAIN-SUFFIX,sentry.io
 DOMAIN-SUFFIX,stripe.com
-DOMAIN-KEYWORD,alkalimakersuite
-DOMAIN,bard.google.com
-DOMAIN,ai.google.dev
-DOMAIN,makersuite.google.com
+DOMAIN-KEYWORD,openaicom-api
+# Azure OpenAI
+DOMAIN-SUFFIX,openai.azure.com
+# Copilot
 DOMAIN-SUFFIX,bing.com
+DOMAIN,api.msn.com
+DOMAIN,api.statsig.com
+DOMAIN,assets.msn.com
+DOMAIN,browser-intake-datadoghq.com
+DOMAIN,copilot.microsoft.com
+DOMAIN,gateway.bingviz.microsoft.net
+DOMAIN,gateway.bingviz.microsoftapp.net
+DOMAIN,in.appcenter.ms
+DOMAIN,location.microsoft.com
+DOMAIN,odc.officeapps.live.com
+DOMAIN,self.events.data.microsoft.com
+DOMAIN,services.bingapis.com
+DOMAIN-SUFFIX,algolia.net
+DOMAIN-SUFFIX,api.microsoftapp.net
+DOMAIN-SUFFIX,bing-shopping.microsoft-falcon.io
+# xAI
+DOMAIN-SUFFIX,x.ai
+# LLM
+DOMAIN-SUFFIX,lmsys.org
+# Poe
 DOMAIN-SUFFIX,poe.com
 DOMAIN-SUFFIX,poecdn.net
-DOMAIN-SUFFIX,openai.azure.com
+# Cohere
+DOMAIN-KEYWORD,cohere
+# Coze
+DOMAIN-SUFFIX,coze.com
+# JetBrains AI
+DOMAIN-SUFFIX,grazie.ai
+DOMAIN-SUFFIX,grazie.aws.intellij.net
+# KLING AI
+DOMAIN-SUFFIX,klingai.com
+# DeepSeek
+DOMAIN-SUFFIX,deepseek.com
+# SiderAI
+DOMAIN-SUFFIX,sider.ai
+# MistralAI
+DOMAIN-SUFFIX,mistral.ai
+# Codeium & Windsurf
+DOMAIN-SUFFIX,codeiumdata.com
+DOMAIN-SUFFIX,codeium.com
+# hcompany.ai
+DOMAIN-SUFFIX,hcompany.ai
+DOMAIN-KEYWORD,hcompany
+# Groq
+DOMAIN-KEYWORD,groq
