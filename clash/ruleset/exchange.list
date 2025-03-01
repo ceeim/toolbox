@@ -1,15 +1,39 @@
 # 币安 Binance
-DOMAIN-SUFFIX,binance.com
-DOMAIN-SUFFIX,binance.me
-DOMAIN-SUFFIX,binance.cloud
+DOMAIN-KEYWORD,binance
 DOMAIN-SUFFIX,bntrace.com
 DOMAIN-SUFFIX,bnappzh.co
 DOMAIN-SUFFIX,bnbzh.ac
 DOMAIN-SUFFIX,bnbstatic.com
 DOMAIN-SUFFIX,saasexch.com
+DOMAIN-SUFFIX,saasexch.cc
 DOMAIN-SUFFIX,appsflayer.com
+DOMAIN-SUFFIX,binancecnt.com
+DOMAIN-SUFFIX,binancefuture.com
 
 # Bybit
 DOMAIN-SUFFIX,bybit.com
 DOMAIN-SUFFIX,bybitglobal.com
 DOMAIN-SUFFIX,bybit-aws.com
+
+# OKX
+DOMAIN-SUFFIX,okex.com
+DOMAIN-SUFFIX,oklink.com
+DOMAIN-SUFFIX,okx.com
+
+# Kraken
+DOMAIN-KEYWORD,kraken
+DOMAIN-KEYWORD,krakenpro
+DOMAIN-SUFFIX, sardine.ai
+DOMAIN,krakenpro.onl
+DOMAIN,kraken.pxf.io
+DOMAIN,kraken.app.link
+DOMAIN,api.smooch.io
+DOMAIN,cdn.branch.io
+DOMAIN,api2.branch.io
+DOMAIN,api3.branch.io
+DOMAIN,ota.phraseapp.com
+DOMAIN,sdk.iad-05.braze.com
+DOMAIN,o552333.ingest.sentry.io
+DOMAIN,o438986.ingest.sentry.io
+DOMAIN,api.segment.io
+DOMAIN,cdn-settings.segment.com
