@@ -16,6 +16,8 @@ DOMAIN-SUFFIX,bybitglobal.com
 DOMAIN-SUFFIX,bybit-aws.com
 
 # OKX
+DOMAIN-KEYWORD,okex.com
+DOMAIN-KEYWORD,okx.com
 DOMAIN-SUFFIX,okex.com
 DOMAIN-SUFFIX,oklink.com
 DOMAIN-SUFFIX,okx.com
