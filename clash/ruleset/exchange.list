@@ -37,3 +37,11 @@ DOMAIN,o552333.ingest.sentry.io
 DOMAIN,o438986.ingest.sentry.io
 DOMAIN,api.segment.io
 DOMAIN,cdn-settings.segment.com
+
+# 火币 HTX
+DOMAIN-KEYWORD,huobi
+DOMAIN-SUFFIX,htx.com
+DOMAIN-SUFFIX,hbfile.net
+DOMAIN,app-static-1306115679.file.myqcloud.com
+DOMAIN-SUFFIX,
+DOMAIN-SUFFIX,
