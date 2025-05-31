@@ -17,6 +17,8 @@ DOMAIN-SUFFIX,deepmind.google
 DOMAIN-SUFFIX,gemini.google.com
 DOMAIN-SUFFIX,generativeai.google
 DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com
+DOMAIN,aistudio.google.com
+DOMAIN-KEYWORD,gemini
 # Claude
 DOMAIN,cdn.usefathom.com
 DOMAIN-KEYWORD,anthropic
