@@ -3,10 +3,8 @@
 # 作者: Cee  主页: https://cee.im
 
 # Gemini & Bard
-DOMAIN,ai.google.dev
+DOMAIN-KEYWORD,gemini
 DOMAIN-KEYWORD,alkalimakersuite
-DOMAIN,generativelanguage.googleapis.com
-DOMAIN,makersuite.google.com
 DOMAIN-KEYWORD,colab
 DOMAIN-KEYWORD,developerprofiles
 DOMAIN-KEYWORD,generativelanguage
@@ -17,8 +15,14 @@ DOMAIN-SUFFIX,deepmind.google
 DOMAIN-SUFFIX,gemini.google.com
 DOMAIN-SUFFIX,generativeai.google
 DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com
+DOMAIN-SUFFIX,clients6.google.com
+DOMAIN,ai.google.dev
+DOMAIN,generativelanguage.googleapis.com
+DOMAIN,makersuite.google.com
 DOMAIN,aistudio.google.com
-DOMAIN-KEYWORD,gemini
+DOMAIN,maps.googleapis.com
+DOMAIN,lh3.google.com
+DOMAIN,lh3.googleusercontent.com
 # Claude
 DOMAIN,cdn.usefathom.com
 DOMAIN-KEYWORD,anthropic
