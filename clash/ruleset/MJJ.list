@@ -1,0 +1,17 @@
+# MJJ 相关网站
+# https://raw.githubusercontent.com/ceeim/toolbox/master/clash/ruleset/MJJ.list
+
+DOMAIN-SUFFIX,hostloc.com
+DOMAIN-SUFFIX,91ai.net
+DOMAIN-SUFFIX,nodeseek.com
+DOMAIN-SUFFIX,lowendtalk.com
+DOMAIN-SUFFIX,v2ex.com
+DOMAIN-SUFFIX,hostevaluate.com
+DOMAIN-SUFFIX,liyuans.com
+DOMAIN-SUFFIX,linux.do
+DOMAIN-SUFFIX,naixi.net
+DOMAIN-SUFFIX,nodeloc.com
+DOMAIN-SUFFIX,nodeloc.cc
+DOMAIN,hostloc.cee.workers.dev
+DOMAIN,loc.pages.dev
+DOMAIN,loc-img.pages.dev
