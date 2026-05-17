@@ -25,7 +25,7 @@ log_banner() { echo -e "${BLUE}$1${NC}"; }
 # ============================================================
 print_banner() {
   log_banner "======================================================"
-  log_banner "        GoEdge 边缘节点 自动部署脚本 v1.0            "
+  log_banner "        GoEdge 边缘节点 自动部署脚本 v1.1            "
   log_banner "======================================================"
   echo ""
 }
@@ -47,8 +47,8 @@ install_deps() {
   log_step "检查依赖工具..."
   local deps=()
 
-  command -v wget  &>/dev/null || deps+=(wget)
-  command -v curl  &>/dev/null || deps+=(curl)
+  command -v wget &>/dev/null || deps+=(wget)
+  command -v curl &>/dev/null || deps+=(curl)
 
   if [[ ${#deps[@]} -gt 0 ]]; then
     log_step "安装缺少的依赖: ${deps[*]}"
@@ -104,44 +104,81 @@ check_docker_compose() {
 }
 
 # ============================================================
-# 从 URL 下载并解析 YAML 配置
-# 解析格式：
-#   rpc.endpoints: [ "http://xxx.com:8001" ]
-#   clusterId: "xxx"
-#   secret: "xxx"
+# URL Decode 函数
+# 将 %XX 编码还原为原始字符
+# ============================================================
+url_decode() {
+  local encoded="${1//+/ }"
+  printf '%b' "${encoded//%/\\x}"
+}
+
+# ============================================================
+# 从 URL 的 text 参数中解析配置
+# 支持两种模式：
+#   1. 解析 URL 中的 text 参数（无需网络请求）
+#   2. 直接请求 URL 获取返回内容
 # ============================================================
 fetch_config_from_url() {
   local url="$1"
-  log_step "正在从 URL 获取配置..."
-  log_info "URL: ${url}"
+  local yaml_content=""
 
-  local yaml_content
-  yaml_content=$(curl -fsSL "$url" 2>/dev/null) || {
-    log_warn "无法从 URL 获取配置，请稍后手动输入"
+  log_step "正在解析配置 URL..."
+
+  # ── 优先从 URL 的 text 参数中提取配置内容 ────────────────
+  if echo "$url" | grep -q 'text='; then
+    log_info "检测到 text 参数，直接从 URL 解析配置内容"
+
+    # 提取 text= 之后的内容（兼容 & 后续参数截断）
+    local raw_text
+    raw_text=$(echo "$url" | grep -oP '(?<=text=)[^#]*')
+
+    # URL Decode
+    yaml_content=$(url_decode "$raw_text")
+
+  # ── 回退：直接请求 URL 获取内容 ──────────────────────────
+  else
+    log_info "未检测到 text 参数，尝试请求 URL 获取配置..."
+    yaml_content=$(curl -sL --connect-timeout 10 --max-time 15 "$url" 2>/dev/null) || {
+      log_warn "无法连接到配置 URL，请检查网络或改为手动输入"
+      return 1
+    }
+  fi
+
+  # ── 检查内容是否为空 ──────────────────────────────────────
+  if [[ -z "$yaml_content" ]]; then
+    log_warn "配置内容为空，解析失败"
     return 1
-  }
+  fi
 
-  # 解析 rpc.endpoints，提取第一个 URL
+  log_info "原始配置内容："
+  echo -e "${BLUE}------------------------------------------------------${NC}"
+  echo "$yaml_content"
+  echo -e "${BLUE}------------------------------------------------------${NC}"
+
+  # ── 解析 rpc.endpoints ───────────────────────────────────
   local endpoints
   endpoints=$(echo "$yaml_content" \
     | grep -oP 'rpc\.endpoints:\s*\[\s*"\K[^"]+' \
     | head -n1)
 
-  # 解析 clusterId
+  # ── 解析 clusterId ────────────────────────────────────────
   local cluster_id
   cluster_id=$(echo "$yaml_content" \
     | grep -oP 'clusterId:\s*"\K[^"]+' \
     | head -n1)
 
-  # 解析 secret
+  # ── 解析 secret ───────────────────────────────────────────
   local secret
   secret=$(echo "$yaml_content" \
     | grep -oP 'secret:\s*"\K[^"]+' \
     | head -n1)
 
-  # 校验是否全部解析成功
+  # ── 校验解析结果 ──────────────────────────────────────────
   if [[ -z "$endpoints" || -z "$cluster_id" || -z "$secret" ]]; then
-    log_warn "URL 配置解析不完整，请手动输入"
+    log_warn "配置解析不完整，详情如下："
+    [[ -z "$endpoints"  ]] && log_warn "  → rpc.endpoints 未解析到"
+    [[ -z "$cluster_id" ]] && log_warn "  → clusterId     未解析到"
+    [[ -z "$secret"     ]] && log_warn "  → secret        未解析到"
     return 1
   fi
 
@@ -149,6 +186,7 @@ fetch_config_from_url() {
   CLUSTERID="$cluster_id"
   SECRET="$secret"
 
+  echo ""
   log_info "配置解析成功："
   echo -e "  ENDPOINTS : ${GREEN}${ENDPOINTS}${NC}"
   echo -e "  CLUSTERID : ${GREEN}${CLUSTERID}${NC}"
@@ -163,35 +201,37 @@ collect_config() {
   echo ""
   log_step "请选择配置方式"
   echo -e "${YELLOW}------------------------------------------------------${NC}"
-  echo -e "  ${CYAN}1)${NC} 从 URL 自动获取配置"
+  echo -e "  ${CYAN}1)${NC} 从 URL 自动获取配置（粘贴配置 URL）"
   echo -e "  ${CYAN}2)${NC} 手动输入配置"
   echo -e "${YELLOW}------------------------------------------------------${NC}"
 
   read -rp "$(echo -e "${YELLOW}请选择 [1/2]（默认: 1）: ${NC}")" CONFIG_MODE
   CONFIG_MODE="${CONFIG_MODE:-1}"
-
   echo ""
 
   # ── 模式1：URL 获取 ──────────────────────────────────────
   if [[ "$CONFIG_MODE" == "1" ]]; then
     while true; do
       read -rp "$(echo -e "${CYAN}请输入配置 URL${NC}: ")" CONFIG_URL
+
       if [[ -z "$CONFIG_URL" ]]; then
         log_warn "URL 不能为空，请重新输入"
         continue
       fi
 
+      echo ""
       if fetch_config_from_url "$CONFIG_URL"; then
         break
-      else
-        echo ""
-        read -rp "$(echo -e "${YELLOW}是否重新输入 URL？[y/N]: ${NC}")" RETRY
-        if [[ ! "$RETRY" =~ ^[Yy]$ ]]; then
-          log_warn "切换为手动输入模式"
-          CONFIG_MODE="2"
-          break
-        fi
       fi
+
+      echo ""
+      read -rp "$(echo -e "${YELLOW}是否重新输入 URL？[y/N]: ${NC}")" RETRY
+      if [[ ! "$RETRY" =~ ^[Yy]$ ]]; then
+        log_warn "切换为手动输入模式"
+        CONFIG_MODE="2"
+        break
+      fi
+      echo ""
     done
   fi
 
