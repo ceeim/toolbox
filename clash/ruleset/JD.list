@@ -4,6 +4,8 @@
 
 DOMAIN-KEYWORD,360buy
 DOMAIN-KEYWORD,jdpay
+DOMAIN-KEYWORD,jddj
+DOMAIN,sso.jddj.com
 DOMAIN-SUFFIX,1huizhan.com
 DOMAIN-SUFFIX,3.cn
 DOMAIN-SUFFIX,300hu.com
@@ -235,8 +237,7 @@ DOMAIN-SUFFIX,yihaodianimg.com
 DOMAIN-SUFFIX,yiyaojd.com
 DOMAIN-SUFFIX,yizhitou.com
 
-# CDN IP
-IP-CIDR,103.107.80.0/20,no-resolve
-IP-CIDR,103.107.64.0/22,no-resolve
-IP-CIDR,103.107.96.0/22,no-resolve
-IP-CIDR,103.107.128.0/22,no-resolve
+# CDN IP（须在 GEOIP,!cn 之前；103.107.x 属 APNIC 103/8，会被 !cn 整段误判）
+IP-CIDR,103.107.0.0/16,no-resolve
+IP-CIDR,103.10.0.0/16,no-resolve
+IP-CIDR,103.28.0.0/16,no-resolve

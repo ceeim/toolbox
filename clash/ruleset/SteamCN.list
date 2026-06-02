@@ -1,5 +1,7 @@
-# SteamCN 国内域名（不含 steamcontent.com，境外 cache 由 GEOSITE,steam → 🎮 Steam）
-# 来源：https://github.com/ACL4SSR/ACL4SSR/blob/master/Clash/Ruleset/SteamCN.list
+# Steam 中国大陆节点（走 🎯 全球直连）
+# 来源: ACL4SSR SteamCN.list + 国服下载镜像
+# 不含 steamcontent.com / steamusercontent.com 泛域名（全球 CDN 见 ruleset/Steam.list）
+
 DOMAIN,csgo.wmsj.cn
 DOMAIN,dl.steam.clngaa.com
 DOMAIN,dl.steam.ksyna.com
