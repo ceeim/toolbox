@@ -1,4 +1,4 @@
-# 京东直连（域名 + CDN IP，须在 GEOIP,!cn 之前）
+# 京东直连（域名 + CDN IP；cee.ini 唯一 JD/Steam 块内须在 Steam 之前）
 # 域名: v2fly/domain-list-community/data/jd（排除 @!cn 海外站）+ jddj.com、jingdonghealth.cn
 # IP: 103.107.x 等 CDN 段（补足 ChinaIp.list 未收录段，如 cactus.jd.com）
 

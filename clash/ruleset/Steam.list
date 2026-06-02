@@ -1,6 +1,7 @@
-# Steam 海外 / 全球节点（走 🎮 Steam 策略组，须在 GEOIP,!cn 之前）
+# Steam 海外 / 全球节点（走 🎮 Steam；与 JD.list 同块收录，JD 在前，且在国外媒体 / GEOIP,!cn 之前）
 # 域名: ACL4SSR Steam.list + 全球 CDN（steamcontent.com 等，不含国服镜像）
 # IP: Valve CM/CDN（Aethersailor Steam_CDN.list / Steam 官方 FAQ）
+# 103.10.124/103.28.54 与 JD.list 重叠，cee.ini 中 JD.list 须在本文件之前
 
 # 域名
 DOMAIN,steambroadcast.akamaized.net
