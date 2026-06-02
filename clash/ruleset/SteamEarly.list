@@ -1,0 +1,5 @@
+# Steam 海外域名（须在 ChinaIp / GEOIP,!cn 之前）
+# 勿在 cee.ini 用 []DOMAIN：subconverter 会把内联规则排到 rules 末尾导致先命中 IP 兜底
+DOMAIN-SUFFIX,steamserver.net
+DOMAIN-SUFFIX,steamcontent.com
+DOMAIN-SUFFIX,steamusercontent.com
