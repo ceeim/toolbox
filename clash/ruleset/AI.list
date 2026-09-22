@@ -45,7 +45,6 @@ DOMAIN-SUFFIX,cognitiveservices.azure.com
 DOMAIN-KEYWORD,anthropic
 DOMAIN-KEYWORD,claude
 DOMAIN-SUFFIX,anthropic.com
-DOMAIN-SUFFIX,anthropic.com.cn
 DOMAIN-SUFFIX,claude.ai
 DOMAIN-SUFFIX,claude.com
 DOMAIN-SUFFIX,claude.app
@@ -270,8 +269,8 @@ DOMAIN-SUFFIX,comfyregistry.org
 DOMAIN-SUFFIX,novelai.net
 DOMAIN-SUFFIX,pixai.art
 DOMAIN-SUFFIX,tensor.art
-DOMAIN,firefly.adobe.com
-DOMAIN,firefly.adobe.io
+DOMAIN-SUFFIX,firefly.adobe.com
+DOMAIN-SUFFIX,firefly.adobe.io
 
 # ---------- 视频 / 3D ----------
 DOMAIN-SUFFIX,runway.com

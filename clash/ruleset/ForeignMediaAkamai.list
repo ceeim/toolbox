@@ -1,0 +1,25 @@
+# 国外媒体使用的 Akamai 节点
+# 须排在 Custom_Direct 的 akamaihd.net / akamaized.net 泛域名之前
+# 来源: ACL4SSR ProxyMedia.list 中被这两条泛域名截走的主机
+
+DOMAIN-SUFFIX,abematv.akamaized.net
+DOMAIN,avodmp4s3ww-a.akamaihd.net
+DOMAIN,aod-dash-uk-live.akamaized.net
+DOMAIN,aod-hls-uk-live.akamaized.net
+DOMAIN,vod-dash-uk-live.akamaized.net
+DOMAIN,vod-thumb-uk-live.akamaized.net
+DOMAIN,bahamut.akamaized.net
+DOMAIN-SUFFIX,dcblivedazn.akamaized.net
+DOMAIN,bcbolt446c5271-a.akamaihd.net
+DOMAIN,bcbolthboa-a.akamaihd.net
+DOMAIN,hboasia1-i.akamaihd.net
+DOMAIN,hboasia2-i.akamaihd.net
+DOMAIN,hboasia3-i.akamaihd.net
+DOMAIN,hboasia4-i.akamaihd.net
+DOMAIN,hboasia5-i.akamaihd.net
+DOMAIN,hboasialive.akamaized.net
+DOMAIN,hbogoprod-vod.akamaized.net
+DOMAIN,itvpnpmobile-a.akamaihd.net
+
+# Bilibili 海外视频 CDN（geosite bilibili-cdn 中带 @!cn 的 Akamai）
+DOMAIN,upos-hz-mirrorakam.akamaized.net

@@ -2,16 +2,27 @@
 # 来源: ACL4SSR SteamCN.list + 国服下载镜像
 # 不含 steamcontent.com / steamusercontent.com 泛域名（全球 CDN 见 ruleset/Steam.list）
 
+DOMAIN,alibaba.cdn.steampipe.steamcontent.com
+DOMAIN,cdn-ali.content.steamchina.com
+DOMAIN,cdn-qc.content.steamchina.com
+DOMAIN,cdn-ws.content.steamchina.com
+DOMAIN,client-update.queniuqe.com
+DOMAIN,csgo.com.cn
 DOMAIN,csgo.wmsj.cn
 DOMAIN,dl.steam.clngaa.com
 DOMAIN,dl.steam.ksyna.com
+DOMAIN,dota2.com.cn
 DOMAIN,dota2.wmsj.cn
+DOMAIN,gstore.val.manlaxy.com
+DOMAIN,lv.queniujq.cn
+DOMAIN,st-bak.viv.wanwang.space
 DOMAIN,st.dl.bscstorage.net
 DOMAIN,st.dl.eccdnx.com
 DOMAIN,st.dl.pinyuncloud.com
 DOMAIN,steampipe.steamcontent.tnkjmec.com
 DOMAIN,steampowered.com.8686c.com
 DOMAIN,steamstatic.com.8686c.com
+DOMAIN,trts.baishancdnx.cn
 DOMAIN,wmsjsteam.com
 DOMAIN,xz.pphimalayanrt.com
 DOMAIN-SUFFIX,cm.steampowered.com

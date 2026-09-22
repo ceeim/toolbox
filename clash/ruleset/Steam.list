@@ -4,18 +4,31 @@
 # 103.10.124/103.28.54 与 JD.list 重叠，cee.ini 中 JD.list 须在本文件之前
 
 # 域名
+# Akamai 用精确域名：cee.ini 中本文件须在 Custom_Direct（akamaihd.net / akamaized.net 泛域名）之前，
+# 否则下载 CDN 会被直连或随后的 category-entertainment（含 category-games-!cn/steam）收进国外媒体
 DOMAIN,steambroadcast.akamaized.net
+DOMAIN,steamcdn-a.akamaihd.net
 DOMAIN,steamcommunity-a.akamaihd.net
+DOMAIN,steamcommunity-a.akamaihd.net.edgesuite.net
+DOMAIN,steammobile.akamaized.net
+DOMAIN,steampipe-kr.akamaized.net
+DOMAIN,steampipe-partner.akamaized.net
 DOMAIN,steampipe.akamaized.net
 DOMAIN,steamstore-a.akamaihd.net
 DOMAIN,steamusercontent-a.akamaihd.net
 DOMAIN,steamuserimages-a.akamaihd.net
+DOMAIN,steamvideo-a.akamaihd.net
 DOMAIN-SUFFIX,fanatical.com
 DOMAIN-SUFFIX,humblebundle.com
 DOMAIN-SUFFIX,playartifact.com
+DOMAIN-SUFFIX,s.team
+DOMAIN-SUFFIX,steam-api.com
 DOMAIN-SUFFIX,steam-chat.com
+DOMAIN-SUFFIX,steam.tv
 DOMAIN-SUFFIX,steamcommunity.com
+DOMAIN-SUFFIX,steamconnecttest.com
 DOMAIN-SUFFIX,steamcontent.com
+DOMAIN-SUFFIX,steamdeck.com
 DOMAIN-SUFFIX,steamgames.com
 DOMAIN-SUFFIX,steampowered.com
 DOMAIN-SUFFIX,steamserver.net
@@ -23,7 +36,24 @@ DOMAIN-SUFFIX,steamstat.us
 DOMAIN-SUFFIX,steamstatic.com
 DOMAIN-SUFFIX,steamusercontent.com
 DOMAIN-SUFFIX,underlords.com
+DOMAIN-SUFFIX,valve.net
 DOMAIN-SUFFIX,valvesoftware.com
+DOMAIN-SUFFIX,dota2.com
+
+# 非 steamcontent.com 的海外下载边缘（网宿国际 / Highwinds / Edgecast / ISP CDN）
+DOMAIN,edge.steam-dns.top.comcast.net
+DOMAIN,a4e8s8k3.map2.ssl.hwcdn.net
+DOMAIN,f3b7q2p3.ssl.hwcdn.net
+DOMAIN,steamcloudsweden.blob.core.windows.net
+DOMAIN,steamugcquincy.blob.core.windows.net
+DOMAIN-SUFFIX,steam.apac.qtlglb.com
+DOMAIN-SUFFIX,steam.eca.qtlglb.com
+DOMAIN-SUFFIX,steam.naeu.qtlglb.com
+DOMAIN-SUFFIX,steam.ru.qtlglb.com
+DOMAIN-SUFFIX,steam.cdn.on.net
+DOMAIN-SUFFIX,steam.cdn.orcon.net.nz
+DOMAIN-SUFFIX,steam.cdn.slingshot.co.nz
+DOMAIN-SUFFIX,steam.cdn.webra.ru
 
 # Valve CM/CDN IP
 IP-CIDR,45.121.184.0/24,no-resolve
