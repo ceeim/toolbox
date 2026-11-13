@@ -20,6 +20,7 @@ INTERACTIVE=1
 
 IN_CHINA=0
 APT_UPDATED=0
+SCRIPT_URL=https://raw.githubusercontent.com/ceeim/toolbox/master/shell/init.sh
 SSHD_DROPIN=/etc/ssh/sshd_config.d/00-init.conf
 
 info() { printf '\033[0;32m[INFO]\033[0m  %s\n' "$*"; }
@@ -28,7 +29,7 @@ die()  { printf '\033[0;31m[ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'EOF'
-用法: init.sh [选项]
+用法: bash <(curl -Ls https://raw.githubusercontent.com/ceeim/toolbox/master/shell/init.sh) [选项]
 
 未用参数指定的 SSH 端口、root 密码登录、SSH 公钥会交互式询问；
 加 -y 则不询问，这三项保持现状。
@@ -89,12 +90,17 @@ valid_port() { [[ $1 =~ ^[0-9]{1,5}$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ];
 
 # 首次登录的可能是普通用户：有 sudo 用 sudo，否则用 su 输入 root 密码
 ensure_root() {
+  local script=$0
   if [ "$(id -u)" -eq 0 ]; then return 0; fi
-  [ -f "$0" ] || die "需要 root 权限。请先把脚本保存为文件再运行，或使用: curl ... | sudo bash -s -- [选项]"
   info "当前不是 root，正在提权..."
-  if command -v sudo >/dev/null 2>&1; then exec sudo bash "$0" "$@"; fi
+  # bash <(curl ...) 方式运行时 $0 是已读完的管道，提权后无法再读，需重新下载一份
+  if [ ! -f "$script" ]; then
+    script=$(mktemp)
+    curl -fsSL "$SCRIPT_URL" -o "$script" || die "下载脚本失败: $SCRIPT_URL"
+  fi
+  if command -v sudo >/dev/null 2>&1; then exec sudo bash "$script" "$@"; fi
   # %q 逐个转义参数，密码、公钥中的特殊字符不会被 su 启动的 shell 再次解析
-  exec su root -c "$(printf '%q ' bash "$0" "$@")"
+  exec su root -c "$(printf '%q ' bash "$script" "$@")"
 }
 
 trim() { local s=$1; s=${s#"${s%%[![:space:]]*}"}; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
