@@ -16,6 +16,8 @@ TIMEZONE="Asia/Singapore"
 DNS_SERVERS=()
 DEFAULT_DNS=(1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001)
 REMOVE_DEFAULT_USERS=1
+INSTALL_DOCKER=""      # yes / no / 空（交互模式下询问，非交互模式下不装）
+HAS_SSHD=1
 INTERACTIVE=1
 # 各发行版云镜像自带的默认登录用户
 DEFAULT_USERS=(debian ubuntu admin ec2-user centos rocky almalinux cloud-user opc fedora)
@@ -23,6 +25,12 @@ DEFAULT_USERS=(debian ubuntu admin ec2-user centos rocky almalinux cloud-user op
 IN_CHINA=0
 APT_UPDATED=0
 SSHD_RESTART_FAILED=0
+SSHD_BACKUP=""         # 本次改动 sshd 配置前的备份，非空表示改过
+SSH_CONFIRMED=0        # 新的登录方式是否已确认可用
+PUBLIC_IP=""
+CONFIRM_TIMEOUT=300
+ROLLBACK_UNIT=init-ssh-rollback
+ROLLBACK_SCRIPT=/root/init-ssh-rollback.sh
 SCRIPT_URL=https://raw.githubusercontent.com/ceeim/toolbox/master/shell/init.sh
 SSHD_DROPIN=/etc/ssh/sshd_config.d/00-init.conf
 
@@ -34,14 +42,19 @@ usage() {
   cat <<'EOF'
 用法: bash <(curl -Ls https://raw.githubusercontent.com/ceeim/toolbox/master/shell/init.sh) [选项]
 
-未用参数指定的 SSH 端口、root 密码登录、SSH 公钥会交互式询问；
-加 -y 则不询问，这三项保持现状。
+未用参数指定的 SSH 端口、root 密码登录、SSH 公钥、是否安装 Docker 会交互式询问；
+加 -y 则不询问：SSH 三项保持现状，Docker 只在指定 --docker 时安装。
+
+改动 SSH 后会要求你另开窗口实际登录一次再确认；300 秒内未确认或当前窗口断开，
+SSH 配置自动还原。确认成功后才会删除系统自带的默认用户。
+-y 模式下无人确认：改了端口就不删默认用户，没改端口则按 sshd 配置检查决定。
 
   --port, --ssh-port PORT 修改 SSH 端口
   --passwd-login yes|no   开启 / 关闭 root 密码登录
   --passwd 'PASS'         设置 root 密码并开启 root 密码登录
   --key, --ssh-key 'KEY'  添加 SSH 公钥（可重复指定）
   --keep-user             不删除系统自带的默认用户（debian、ubuntu 等）
+  --docker                安装 Docker
   --bbr MODE              BBR 及其队列算法，默认 fq：
                             fq      BBR + fq（官方推荐搭配）
                             fq_pie  BBR + fq_pie（内核 5.6+）
@@ -57,9 +70,8 @@ usage() {
   init.sh --port 2222 --passwd 'p@$$w0rd!&' \
           --key 'ssh-ed25519 AAAAC3... me@host' --dns '8.8.8.8,2001:4860:4860::8888'
 
-本次设置了 root 密码或 SSH 公钥、且确认 root 可以登录后，会删除系统自带的默认用户
-（debian、ubuntu、ec2-user 等）及其家目录。
-内存 >= 1GB 时自动安装 Docker；出口 IP 位于中国大陆时软件源改为中科大镜像。
+默认用户指 debian、ubuntu、ec2-user 等云镜像自带账号，删除时连同家目录。
+出口 IP 位于中国大陆时软件源改为中科大镜像。
 EOF
 }
 
@@ -71,6 +83,7 @@ parse_args() {
       -h|--help) usage; exit 0 ;;
       -y|--yes) INTERACTIVE=0; shift; continue ;;
       --keep-user) REMOVE_DEFAULT_USERS=0; shift; continue ;;
+      --docker) INSTALL_DOCKER=yes; shift; continue ;;
       --*=*) val=${opt#*=}; opt=${opt%%=*}; shift ;;
       --*) [ $# -ge 2 ] || die "$opt 缺少参数值"; val=$2; shift 2 ;;
       *) die "未知参数: $opt（见 --help）" ;;
@@ -132,11 +145,7 @@ current_ssh_port() {
 
 # 所有询问集中在最前面，之后的步骤无需人工值守
 collect_input() {
-  local i reply confirm
-  for i in "${!SSH_KEYS[@]}"; do
-    SSH_KEYS[i]=$(trim "${SSH_KEYS[i]}")
-    valid_ssh_key "${SSH_KEYS[i]}" || die "无效的 SSH 公钥: ${SSH_KEYS[i]}"
-  done
+  local reply confirm
 
   # 管道运行（curl | bash）时 stdin 不是终端，统一从 /dev/tty 读取
   if [ "$INTERACTIVE" -eq 1 ] && ! { : </dev/tty; } 2>/dev/null; then
@@ -145,6 +154,29 @@ collect_input() {
   fi
   if [ "$INTERACTIVE" -eq 0 ]; then return 0; fi
 
+  if [ "$HAS_SSHD" -eq 1 ]; then collect_ssh_input; fi
+
+  # 内存不足 1GB 时默认不装（标称 1GB 的机器 MemTotal 通常只有 950MB 左右，以 900MB 为界）
+  while [ -z "$INSTALL_DOCKER" ]; do
+    if [ "$(mem_mb)" -ge 900 ]; then
+      read -r -p "是否安装 Docker [Y/n]: " reply </dev/tty
+      reply=${reply:-y}
+    else
+      read -r -p "是否安装 Docker（内存 $(mem_mb)MB 不足 1GB，不建议）[y/N]: " reply </dev/tty
+      reply=${reply:-n}
+    fi
+    case "$reply" in
+      y|Y|yes) INSTALL_DOCKER=yes ;;
+      n|N|no) INSTALL_DOCKER=no ;;
+      *) warn "请输入 y 或 n" ;;
+    esac
+  done
+}
+
+mem_mb() { awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo; }
+
+collect_ssh_input() {
+  local reply confirm
   while [ -z "$SSH_PORT" ]; do
     read -r -p "新的 SSH 端口 [回车保持 $(current_ssh_port)]: " reply </dev/tty
     if [ -z "$reply" ]; then break; fi
@@ -161,11 +193,11 @@ collect_input() {
     esac
   done
 
-  # -r 与 -s：密码原样读取且不回显，任何特殊字符都不会被解释
+  # IFS= 与 -r -s：密码原样读取（含首尾空格和反斜杠）且不回显
   while [ "$ROOT_LOGIN" = yes ] && [ -z "$ROOT_PASSWORD" ]; do
-    read -r -s -p "root 新密码 [回车沿用现有密码]: " reply </dev/tty; echo
+    IFS= read -r -s -p "root 新密码 [回车沿用现有密码]: " reply </dev/tty; echo
     if [ -z "$reply" ]; then break; fi
-    read -r -s -p "再次输入 root 新密码: " confirm </dev/tty; echo
+    IFS= read -r -s -p "再次输入 root 新密码: " confirm </dev/tty; echo
     if [ "$reply" = "$confirm" ]; then ROOT_PASSWORD=$reply; else warn "两次输入不一致"; fi
   done
 
@@ -209,6 +241,7 @@ detect_region() {
     ip=$(sed -n 's/.*"ip":"\([^"]*\)".*/\1/p' <<<"$json")
     if [ -z "$cc" ]; then info "IPv$v: 不可用"; continue; fi
     info "IPv$v: $ip ($cc)"
+    if [ -z "$PUBLIC_IP" ]; then PUBLIC_IP=$ip; fi
     # CN 仅指中国大陆，港澳台有各自的代码
     if [ "$cc" = CN ]; then IN_CHINA=1; fi
   done
@@ -219,7 +252,8 @@ use_ustc_mirror() {
   local f files=()
   case "$OS_ID" in
     debian)
-      for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do
+      # Debian 12+ 云镜像的源地址写在 /etc/apt/mirrors/*.list，debian.sources 只是引用它
+      for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources /etc/apt/mirrors/*.list; do
         if [ -f "$f" ]; then sed -ri.bak 's#(https?://)(deb|security)\.debian\.org#\1mirrors.ustc.edu.cn#g' "$f"; fi
       done ;;
     ubuntu)
@@ -364,7 +398,7 @@ restart_sshd() {
 }
 
 setup_sshd() {
-  local settings=() keys f backup tmp
+  local settings=() keys f backup tmp listen
 
   if [ "$ROOT_LOGIN" = no ] && ! has_authorized_keys; then
     warn "未发现任何 SSH 公钥，关闭 root 密码登录可能导致无法登录，已跳过"
@@ -416,11 +450,88 @@ setup_sshd() {
   fi
 
   if [ -n "$SSH_PORT" ] && [ "$SSH_PORT" != 22 ]; then open_ssh_port "$SSH_PORT"; fi
+  SSHD_BACKUP=$backup
   if ! restart_sshd; then
     SSHD_RESTART_FAILED=1
     warn "sshd 重启失败，请手动重启后配置才会生效"
   fi
+  # 配置写对了不代表真的在监听：以实际监听端口为准
+  if [ -n "$SSH_PORT" ] && command -v ss >/dev/null 2>&1; then
+    sleep 1
+    listen=$(ss -ltnH 2>/dev/null | awk '{ print $4 }')
+    if ! grep -Eq "[:.]$SSH_PORT\$" <<<"$listen"; then
+      SSHD_RESTART_FAILED=1
+      warn "sshd 没有在端口 $SSH_PORT 上监听"
+    fi
+  fi
   info "sshd 已更新: $(IFS=,; echo "${settings[*]}")（备份: $backup）"
+}
+
+# 还原脚本独立成文件：既供本脚本直接调用，也供 systemd 定时器在会话断开后执行
+write_rollback_script() {
+  cat >"$ROLLBACK_SCRIPT" <<EOF
+#!/bin/sh
+rm -f $SSHD_DROPIN
+tar -xzf $SSHD_BACKUP -C /
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload
+  systemctl try-restart ssh.socket 2>/dev/null
+  systemctl restart ssh 2>/dev/null || systemctl restart sshd
+else
+  service ssh restart 2>/dev/null || service sshd restart
+fi
+EOF
+  chmod 700 "$ROLLBACK_SCRIPT"
+}
+
+# 脚本只能确认 sshd 配置正确，确认不了安全组、防火墙是否放行，
+# 所以改动 SSH 后必须由人用新连接实际登录一次；没人确认就自动还原。
+confirm_ssh_access() {
+  local reply="" how=() timer=0
+  if [ -z "$SSHD_BACKUP" ] && [ ${#SSH_KEYS[@]} -eq 0 ]; then return 0; fi
+
+  if [ "$INTERACTIVE" -eq 0 ]; then
+    if [ -n "$SSH_PORT" ]; then
+      warn "非交互模式下改了 SSH 端口，无法确认新端口能从外部连上"
+    elif [ "$SSHD_RESTART_FAILED" -eq 0 ] && root_can_login; then
+      SSH_CONFIRMED=1
+    fi
+    return 0
+  fi
+
+  if [ -n "$SSHD_BACKUP" ]; then
+    write_rollback_script
+    if [ -d /run/systemd/system ]; then
+      systemctl stop "$ROLLBACK_UNIT.timer" 2>/dev/null || true
+      systemctl reset-failed "$ROLLBACK_UNIT.service" 2>/dev/null || true
+      if systemd-run --quiet --unit="$ROLLBACK_UNIT" --on-active="$CONFIRM_TIMEOUT" "$ROLLBACK_SCRIPT"; then timer=1; fi
+    fi
+  fi
+
+  if [ ${#SSH_KEYS[@]} -gt 0 ]; then how+=("公钥"); fi
+  if [ "$ROOT_LOGIN" = yes ]; then how+=("密码"); fi
+  echo
+  warn "请保持当前窗口不要关闭，另开一个终端窗口验证 root 能否登录${how[0]+（$(IFS=/; echo "${how[*]}")）}："
+  warn "    ssh -p $(current_ssh_port) root@${PUBLIC_IP:-服务器IP}"
+  if [ -n "$SSHD_BACKUP" ]; then warn "${CONFIRM_TIMEOUT} 秒内未确认，或当前窗口断开，SSH 配置将自动还原。"; fi
+  read -r -t "$CONFIRM_TIMEOUT" -p "新窗口登录成功了吗？[y 成功 / n 失败并还原]: " reply </dev/tty || true
+  echo
+
+  if [ "$timer" -eq 1 ]; then systemctl stop "$ROLLBACK_UNIT.timer" 2>/dev/null || true; fi
+  case "$reply" in
+    y|Y|yes)
+      SSH_CONFIRMED=1
+      rm -f "$ROLLBACK_SCRIPT"
+      info "已确认 root 可以登录" ;;
+    *)
+      if [ -n "$SSHD_BACKUP" ]; then
+        "$ROLLBACK_SCRIPT" || true
+        warn "未确认登录成功，SSH 配置已还原到运行前的状态（root 密码和已写入的公钥不会撤销）"
+        SSH_PORT=""
+      else
+        warn "未确认登录成功"
+      fi ;;
+  esac
 }
 
 # 按 sshd 的最终生效配置判断 root 能否用公钥或密码登录
@@ -438,8 +549,8 @@ root_can_login() {
 remove_default_users() {
   local user removed=0
   if [ ${#SSH_KEYS[@]} -eq 0 ] && [ -z "$ROOT_PASSWORD" ] && [ "$ROOT_LOGIN" != yes ]; then return 0; fi
-  if [ "$SSHD_RESTART_FAILED" -eq 1 ] || ! root_can_login; then
-    warn "无法确认 root 可以登录，保留系统默认用户"
+  if [ "$SSH_CONFIRMED" -eq 0 ] || [ "$SSHD_RESTART_FAILED" -eq 1 ] || ! root_can_login; then
+    warn "未确认 root 可以登录，保留系统默认用户；确认后可手动执行 userdel -r 用户名"
     return 0
   fi
   for user in "${DEFAULT_USERS[@]}"; do
@@ -453,24 +564,19 @@ remove_default_users() {
     info "已删除默认用户 $user 及其家目录"
     removed=1
   done
-  if [ "$removed" -eq 1 ]; then warn "默认用户已删除：当前会话结束后请改用 root 登录，断开前先开新窗口确认"; fi
+  if [ "$removed" -eq 1 ]; then warn "默认用户已删除：当前会话结束后请改用 root 登录"; fi
 }
 
 install_docker() {
-  local mem_mb script
-  mem_mb=$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)
-  # 标称 1GB 的机器扣除内核保留后 MemTotal 通常只有 950MB 左右，以 900MB 为界
-  if [ "$mem_mb" -lt 900 ]; then info "内存 ${mem_mb}MB 不足 1GB，不安装 Docker"; return 0; fi
+  local script
   if command -v docker >/dev/null 2>&1; then info "Docker 已安装，跳过"; return 0; fi
 
-  info "内存 ${mem_mb}MB，开始安装 Docker..."
+  info "开始安装 Docker..."
   script=$(mktemp)
-  curl -fsSL https://get.docker.com -o "$script"
-  if [ "$IN_CHINA" -eq 1 ]; then
-    DOWNLOAD_URL=https://mirrors.ustc.edu.cn/docker-ce sh "$script"
-  else
-    sh "$script"
-  fi
+  # Docker 装不上不应中断其余初始化步骤
+  if ! curl -fsSL https://get.docker.com -o "$script"; then warn "下载 Docker 安装脚本失败，已跳过"; return 0; fi
+  if [ "$IN_CHINA" -eq 1 ]; then export DOWNLOAD_URL=https://mirrors.ustc.edu.cn/docker-ce; fi
+  if ! sh "$script"; then warn "Docker 安装失败，已跳过"; return 0; fi
   rm -f "$script"
   systemctl enable --now docker 2>/dev/null || true
   info "Docker 安装完成: $(docker --version)"
@@ -480,12 +586,17 @@ main() {
   parse_args "$@"
   ensure_root "$@"
   detect_os
+  local i
   if command -v sshd >/dev/null 2>&1; then
-    collect_input
+    for i in "${!SSH_KEYS[@]}"; do
+      SSH_KEYS[i]=$(trim "${SSH_KEYS[i]}")
+      valid_ssh_key "${SSH_KEYS[i]}" || die "无效的 SSH 公钥: ${SSH_KEYS[i]}"
+    done
   else
     warn "未安装 sshd，跳过全部 SSH 设置"
-    SSH_PORT=""; ROOT_LOGIN=""; SSH_KEYS=()
+    HAS_SSHD=0; SSH_PORT=""; ROOT_LOGIN=""; SSH_KEYS=()
   fi
+  collect_input
 
   detect_region
   if [ "$IN_CHINA" -eq 1 ]; then use_ustc_mirror; else info "位于中国大陆以外，软件源保持默认"; fi
@@ -494,14 +605,16 @@ main() {
   setup_dns
   setup_ipv4_first
   if [ "$BBR_MODE" != off ]; then setup_bbr; fi
+  # Docker 安装耗时较长，放在 SSH 改动之前，避免占用登录确认的倒计时
+  if [ "$INSTALL_DOCKER" = yes ]; then install_docker; fi
   if [ ${#SSH_KEYS[@]} -gt 0 ]; then add_ssh_keys; fi
   setup_sshd
-  install_docker
+  confirm_ssh_access
   if [ "$REMOVE_DEFAULT_USERS" -eq 1 ]; then remove_default_users; fi
 
   info "初始化完成"
-  if [ -n "$SSH_PORT" ]; then
-    warn "SSH 端口已改为 $SSH_PORT：请在云厂商安全组放行该端口，并先开新窗口确认能登录，再关闭当前会话"
+  if [ -n "$SSH_PORT" ] && [ "$SSH_CONFIRMED" -eq 0 ]; then
+    warn "SSH 端口已改为 $SSH_PORT：请在云厂商安全组和系统防火墙放行该端口，并先开新窗口确认能登录，再关闭当前会话"
   fi
 }
 
