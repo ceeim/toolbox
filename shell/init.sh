@@ -338,7 +338,7 @@ setup_bbr() {
 }
 
 add_ssh_keys() {
-  local user home file key users=(root)
+  local user home file key blob tmp users=(root)
   # 通过 sudo / su 提权时，把公钥同时加给最初登录的普通用户
   user=${SUDO_USER:-$(logname 2>/dev/null || true)}
   if [ -n "$user" ] && [ "$user" != root ] && id "$user" >/dev/null 2>&1; then users+=("$user"); fi
@@ -351,7 +351,16 @@ add_ssh_keys() {
     # 原文件末尾没有换行时先补上，避免新公钥接在上一行后面
     if [ -n "$(tail -c1 "$file")" ]; then echo >>"$file"; fi
     for key in "${SSH_KEYS[@]}"; do
-      grep -qxF -- "$key" "$file" || printf '%s\n' "$key" >>"$file"
+      # 云镜像会把同一把公钥以 command="echo Please login as the user ..." 的受限形式预置在 root 下，
+      # sshd 取第一条匹配的记录，不删掉它，后面追加的正常记录永远轮不到。所以先清掉同一公钥的所有旧行。
+      blob=$(awk '{ for (i = 1; i < NF; i++) if ($i ~ /^(ssh-|ecdsa-|sk-)/) { print $(i + 1); exit } }' <<<"$key")
+      if [ -n "$blob" ]; then
+        tmp=$(mktemp)
+        grep -vF -- "$blob" "$file" >"$tmp" || true
+        cat "$tmp" >"$file"
+        rm -f "$tmp"
+      fi
+      printf '%s\n' "$key" >>"$file"
     done
     chmod 600 "$file"
     chown "$user:$(id -gn "$user")" "$file"
