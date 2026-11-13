@@ -11,8 +11,7 @@ SSH_PORT=""
 ROOT_LOGIN=""          # yes / no / 空（保持现状）
 ROOT_PASSWORD=""
 SSH_KEYS=()
-ENABLE_BBR=1
-IPV4_FIRST=1
+BBR_MODE=fq            # fq / fq_pie / cake / off
 TIMEZONE="Asia/Singapore"
 DNS_SERVERS=()
 DEFAULT_DNS=(1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001)
@@ -38,13 +37,16 @@ usage() {
 未用参数指定的 SSH 端口、root 密码登录、SSH 公钥会交互式询问；
 加 -y 则不询问，这三项保持现状。
 
-  --ssh-port PORT         修改 SSH 端口
-  --root-login yes|no     开启 / 关闭 root 密码登录
-  --root-password 'PASS'  设置 root 密码并开启 root 密码登录
-  --ssh-key 'KEY'         添加 SSH 公钥（可重复指定）
-  --keep-default-user     不删除系统自带的默认用户（debian、ubuntu 等）
-  --no-bbr                不设置 BBR
-  --no-ipv4-first         不设置 IPv4 优先
+  --port, --ssh-port PORT 修改 SSH 端口
+  --passwd-login yes|no   开启 / 关闭 root 密码登录
+  --passwd 'PASS'         设置 root 密码并开启 root 密码登录
+  --key, --ssh-key 'KEY'  添加 SSH 公钥（可重复指定）
+  --keep-user             不删除系统自带的默认用户（debian、ubuntu 等）
+  --bbr MODE              BBR 及其队列算法，默认 fq：
+                            fq      BBR + fq（官方推荐搭配）
+                            fq_pie  BBR + fq_pie（内核 5.6+）
+                            cake    BBR + cake（内核 4.19+）
+                            off     不设置 BBR
   --timezone TZ           时区，默认 Asia/Singapore
   --dns 'A,B,...'         DNS 服务器，逗号或空格分隔，可重复指定；
                           默认 Cloudflare IPv4 + IPv6
@@ -52,8 +54,8 @@ usage() {
   -h, --help              显示帮助
 
 密码和公钥含特殊字符或空格，必须用单引号包裹；值本身含单引号时写成 '\''：
-  init.sh --ssh-port 2222 --root-password 'p@$$w0rd!&' \
-          --ssh-key 'ssh-ed25519 AAAAC3... me@host' --dns '8.8.8.8,2001:4860:4860::8888'
+  init.sh --port 2222 --passwd 'p@$$w0rd!&' \
+          --key 'ssh-ed25519 AAAAC3... me@host' --dns '8.8.8.8,2001:4860:4860::8888'
 
 本次设置了 root 密码或 SSH 公钥、且确认 root 可以登录后，会删除系统自带的默认用户
 （debian、ubuntu、ec2-user 等）及其家目录。
@@ -68,18 +70,17 @@ parse_args() {
     case "$opt" in
       -h|--help) usage; exit 0 ;;
       -y|--yes) INTERACTIVE=0; shift; continue ;;
-      --no-bbr) ENABLE_BBR=0; shift; continue ;;
-      --keep-default-user) REMOVE_DEFAULT_USERS=0; shift; continue ;;
-      --no-ipv4-first) IPV4_FIRST=0; shift; continue ;;
+      --keep-user) REMOVE_DEFAULT_USERS=0; shift; continue ;;
       --*=*) val=${opt#*=}; opt=${opt%%=*}; shift ;;
       --*) [ $# -ge 2 ] || die "$opt 缺少参数值"; val=$2; shift 2 ;;
       *) die "未知参数: $opt（见 --help）" ;;
     esac
     case "$opt" in
-      --ssh-port) SSH_PORT=$val ;;
-      --root-login) ROOT_LOGIN=$val ;;
-      --root-password) [ -n "$val" ] || die "root 密码不能为空"; ROOT_PASSWORD=$val; ROOT_LOGIN=yes ;;
-      --ssh-key) SSH_KEYS+=("$val") ;;
+      --port|--ssh-port) SSH_PORT=$val ;;
+      --passwd-login) ROOT_LOGIN=$val ;;
+      --bbr) BBR_MODE=$val ;;
+      --passwd) [ -n "$val" ] || die "root 密码不能为空"; ROOT_PASSWORD=$val; ROOT_LOGIN=yes ;;
+      --key|--ssh-key) SSH_KEYS+=("$val") ;;
       --timezone) TIMEZONE=$val ;;
       --dns) read -r -a list <<<"${val//,/ }"; DNS_SERVERS+=(${list[@]+"${list[@]}"}) ;;
       *) die "未知参数: $opt（见 --help）" ;;
@@ -87,7 +88,8 @@ parse_args() {
   done
 
   if [ -n "$SSH_PORT" ] && ! valid_port "$SSH_PORT"; then die "无效的 SSH 端口: $SSH_PORT"; fi
-  case "$ROOT_LOGIN" in ""|yes|no) ;; *) die "--root-login 只接受 yes 或 no" ;; esac
+  case "$ROOT_LOGIN" in ""|yes|no) ;; *) die "--passwd-login 只接受 yes 或 no" ;; esac
+  case "$BBR_MODE" in fq|fq_pie|cake|off) ;; *) die "--bbr 只接受 fq、fq_pie、cake 或 off" ;; esac
   if [ ${#DNS_SERVERS[@]} -eq 0 ]; then DNS_SERVERS=("${DEFAULT_DNS[@]}"); fi
   for dns in "${DNS_SERVERS[@]}"; do
     [[ $dns =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || ( $dns == *:* && $dns =~ ^[0-9a-fA-F:.]+$ ) ]] || die "无效的 DNS 地址: $dns"
@@ -285,14 +287,20 @@ setup_ipv4_first() {
 }
 
 setup_bbr() {
+  local qdisc=$BBR_MODE
   modprobe tcp_bbr 2>/dev/null || true
   if ! grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
     warn "当前内核不支持 BBR（需要 4.9+），已跳过"
     return 0
   fi
+  if [ "$qdisc" != fq ] && ! modprobe "sch_$qdisc" 2>/dev/null; then
+    warn "当前内核没有 $qdisc 队列算法，改用 fq"
+    qdisc=fq
+  fi
   mkdir -p /etc/sysctl.d
-  printf 'net.core.default_qdisc = fq\nnet.ipv4.tcp_congestion_control = bbr\n' >/etc/sysctl.d/99-bbr.conf
-  if sysctl -q -p /etc/sysctl.d/99-bbr.conf; then info "已启用 BBR + fq"; else warn "BBR 参数写入失败（容器内可能无权修改）"; fi
+  printf 'net.core.default_qdisc = %s\nnet.ipv4.tcp_congestion_control = bbr\n' "$qdisc" >/etc/sysctl.d/99-bbr.conf
+  # 拥塞控制立即生效；队列算法对已存在的网卡要重启后才切换
+  if sysctl -q -p /etc/sysctl.d/99-bbr.conf; then info "已启用 BBR + $qdisc"; else warn "BBR 参数写入失败（容器内可能无权修改）"; fi
 }
 
 add_ssh_keys() {
@@ -484,8 +492,8 @@ main() {
 
   setup_timezone
   setup_dns
-  if [ "$IPV4_FIRST" -eq 1 ]; then setup_ipv4_first; fi
-  if [ "$ENABLE_BBR" -eq 1 ]; then setup_bbr; fi
+  setup_ipv4_first
+  if [ "$BBR_MODE" != off ]; then setup_bbr; fi
   if [ ${#SSH_KEYS[@]} -gt 0 ]; then add_ssh_keys; fi
   setup_sshd
   install_docker
