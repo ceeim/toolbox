@@ -157,6 +157,8 @@ collect_input() {
   if [ "$HAS_SSHD" -eq 1 ]; then collect_ssh_input; fi
 
   # 内存不足 1GB 时默认不装（标称 1GB 的机器 MemTotal 通常只有 950MB 左右，以 900MB 为界）
+  # 已经装过就不再询问
+  if command -v docker >/dev/null 2>&1; then INSTALL_DOCKER=${INSTALL_DOCKER:-no}; fi
   while [ -z "$INSTALL_DOCKER" ]; do
     if [ "$(mem_mb)" -ge 900 ]; then
       read -r -p "是否安装 Docker [Y/n]: " reply </dev/tty
