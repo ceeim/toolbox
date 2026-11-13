@@ -16,10 +16,14 @@ IPV4_FIRST=1
 TIMEZONE="Asia/Singapore"
 DNS_SERVERS=()
 DEFAULT_DNS=(1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001)
+REMOVE_DEFAULT_USERS=1
 INTERACTIVE=1
+# 各发行版云镜像自带的默认登录用户
+DEFAULT_USERS=(debian ubuntu admin ec2-user centos rocky almalinux cloud-user opc fedora)
 
 IN_CHINA=0
 APT_UPDATED=0
+SSHD_RESTART_FAILED=0
 SCRIPT_URL=https://raw.githubusercontent.com/ceeim/toolbox/master/shell/init.sh
 SSHD_DROPIN=/etc/ssh/sshd_config.d/00-init.conf
 
@@ -38,6 +42,7 @@ usage() {
   --root-login yes|no     开启 / 关闭 root 密码登录
   --root-password 'PASS'  设置 root 密码并开启 root 密码登录
   --ssh-key 'KEY'         添加 SSH 公钥（可重复指定）
+  --keep-default-user     不删除系统自带的默认用户（debian、ubuntu 等）
   --no-bbr                不设置 BBR
   --no-ipv4-first         不设置 IPv4 优先
   --timezone TZ           时区，默认 Asia/Singapore
@@ -50,6 +55,8 @@ usage() {
   init.sh --ssh-port 2222 --root-password 'p@$$w0rd!&' \
           --ssh-key 'ssh-ed25519 AAAAC3... me@host' --dns '8.8.8.8,2001:4860:4860::8888'
 
+本次设置了 root 密码或 SSH 公钥、且确认 root 可以登录后，会删除系统自带的默认用户
+（debian、ubuntu、ec2-user 等）及其家目录。
 内存 >= 1GB 时自动安装 Docker；出口 IP 位于中国大陆时软件源改为中科大镜像。
 EOF
 }
@@ -62,6 +69,7 @@ parse_args() {
       -h|--help) usage; exit 0 ;;
       -y|--yes) INTERACTIVE=0; shift; continue ;;
       --no-bbr) ENABLE_BBR=0; shift; continue ;;
+      --keep-default-user) REMOVE_DEFAULT_USERS=0; shift; continue ;;
       --no-ipv4-first) IPV4_FIRST=0; shift; continue ;;
       --*=*) val=${opt#*=}; opt=${opt%%=*}; shift ;;
       --*) [ $# -ge 2 ] || die "$opt 缺少参数值"; val=$2; shift 2 ;;
@@ -314,7 +322,8 @@ has_authorized_keys() {
   for user in root "${SUDO_USER:-}"; do
     if [ -z "$user" ]; then continue; fi
     home=$(getent passwd "$user" | cut -d: -f6)
-    if [ -s "$home/.ssh/authorized_keys" ]; then return 0; fi
+    # 只认无前缀选项的公钥，排除云镜像放在 root 下的 command="echo Please login as ..." 占位公钥
+    if grep -Eqs '^(ssh-|ecdsa-|sk-)' "$home/.ssh/authorized_keys"; then return 0; fi
   done
   return 1
 }
@@ -399,8 +408,44 @@ setup_sshd() {
   fi
 
   if [ -n "$SSH_PORT" ] && [ "$SSH_PORT" != 22 ]; then open_ssh_port "$SSH_PORT"; fi
-  restart_sshd || warn "sshd 重启失败，请手动重启后配置才会生效"
+  if ! restart_sshd; then
+    SSHD_RESTART_FAILED=1
+    warn "sshd 重启失败，请手动重启后配置才会生效"
+  fi
   info "sshd 已更新: $(IFS=,; echo "${settings[*]}")（备份: $backup）"
+}
+
+# 按 sshd 的最终生效配置判断 root 能否用公钥或密码登录
+root_can_login() {
+  local cfg permit
+  cfg=$(sshd -T 2>/dev/null) || return 1
+  permit=$(awk '$1 == "permitrootlogin" { print $2 }' <<<"$cfg")
+  if [ "$permit" = no ]; then return 1; fi
+  if grep -q '^pubkeyauthentication yes' <<<"$cfg" && grep -Eqs '^(ssh-|ecdsa-|sk-)' /root/.ssh/authorized_keys; then
+    return 0
+  fi
+  [ "$permit" = yes ] && grep -q '^passwordauthentication yes' <<<"$cfg" && [ "$(passwd -S root | awk '{ print $2 }')" = P ]
+}
+
+remove_default_users() {
+  local user removed=0
+  if [ ${#SSH_KEYS[@]} -eq 0 ] && [ -z "$ROOT_PASSWORD" ] && [ "$ROOT_LOGIN" != yes ]; then return 0; fi
+  if [ "$SSHD_RESTART_FAILED" -eq 1 ] || ! root_can_login; then
+    warn "无法确认 root 可以登录，保留系统默认用户"
+    return 0
+  fi
+  for user in "${DEFAULT_USERS[@]}"; do
+    # UID < 1000 的是系统账号，不动
+    if ! id "$user" >/dev/null 2>&1 || [ "$(id -u "$user")" -lt 1000 ]; then continue; fi
+    # -f：当前会话可能正是以该用户登录的，不加会因其有进程在运行而拒绝删除
+    userdel -rf "$user" 2>/dev/null || true
+    if id "$user" >/dev/null 2>&1; then warn "删除默认用户 $user 失败"; continue; fi
+    # cloud-init 为默认用户写的免密 sudo 规则，一并清掉，避免日后同名用户自动获得 sudo
+    if [ -f /etc/sudoers.d/90-cloud-init-users ]; then sed -i "/^$user[[:space:]]/d" /etc/sudoers.d/90-cloud-init-users; fi
+    info "已删除默认用户 $user 及其家目录"
+    removed=1
+  done
+  if [ "$removed" -eq 1 ]; then warn "默认用户已删除：当前会话结束后请改用 root 登录，断开前先开新窗口确认"; fi
 }
 
 install_docker() {
@@ -444,6 +489,7 @@ main() {
   if [ ${#SSH_KEYS[@]} -gt 0 ]; then add_ssh_keys; fi
   setup_sshd
   install_docker
+  if [ "$REMOVE_DEFAULT_USERS" -eq 1 ]; then remove_default_users; fi
 
   info "初始化完成"
   if [ -n "$SSH_PORT" ]; then
