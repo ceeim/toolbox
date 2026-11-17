@@ -16,6 +16,7 @@ TIMEZONE="Asia/Singapore"
 DNS_SERVERS=()
 DEFAULT_DNS=(1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001)
 REMOVE_DEFAULT_USERS=1
+USER_DEL=()            # --user-del 指定的用户，非空时只执行删除
 INSTALL_DOCKER=""      # yes / no / 空（交互模式下询问，非交互模式下不装）
 HAS_SSHD=1
 INTERACTIVE=1
@@ -46,14 +47,19 @@ usage() {
 加 -y 则不询问：SSH 三项保持现状，Docker 只在指定 --docker 时安装。
 
 改动 SSH 后会要求你另开窗口实际登录一次再确认；300 秒内未确认或当前窗口断开，
-SSH 配置自动还原。确认成功后才会删除系统自带的默认用户。
--y 模式下无人确认：改了端口就不删默认用户，没改端口则按 sshd 配置检查决定。
+SSH 配置自动还原。
+
+删除用户：交互模式下列出所有非系统用户，逐个询问是否删除（默认不删除）；
+本次改了 SSH 却没确认登录成功时不询问。-y 模式下只删除云镜像默认用户，
+且改了端口就不删，没改端口则按 sshd 配置检查决定。加 --user-keep 则都不删除。
 
   --port, --ssh-port PORT 修改 SSH 端口
   --passwd-login yes|no   开启 / 关闭 root 密码登录
   --passwd 'PASS'         设置 root 密码并开启 root 密码登录
   --key, --ssh-key 'KEY'  添加 SSH 公钥（可重复指定）
-  --keep-user             不删除系统自带的默认用户（debian、ubuntu 等）
+  --user-keep             不删除任何用户，也不询问
+  --user-del USER         只删除指定用户（可重复指定），不做其他任何设置；
+                          删除前确认，默认 N，-y 时不确认直接删除
   --docker                安装 Docker
   --bbr MODE              BBR 及其队列算法，默认 fq：
                             fq      BBR + fq（官方推荐搭配）
@@ -70,7 +76,7 @@ SSH 配置自动还原。确认成功后才会删除系统自带的默认用户�
   init.sh --port 2222 --passwd 'p@$$w0rd!&' \
           --key 'ssh-ed25519 AAAAC3... me@host' --dns '8.8.8.8,2001:4860:4860::8888'
 
-默认用户指 debian、ubuntu、ec2-user 等云镜像自带账号，删除时连同家目录。
+默认用户指 debian、ubuntu、ec2-user 等云镜像自带账号。删除用户时连同家目录。
 出口 IP 位于中国大陆时软件源改为中科大镜像。
 EOF
 }
@@ -82,7 +88,7 @@ parse_args() {
     case "$opt" in
       -h|--help) usage; exit 0 ;;
       -y|--yes) INTERACTIVE=0; shift; continue ;;
-      --keep-user) REMOVE_DEFAULT_USERS=0; shift; continue ;;
+      --user-keep) REMOVE_DEFAULT_USERS=0; shift; continue ;;
       --docker) INSTALL_DOCKER=yes; shift; continue ;;
       --*=*) val=${opt#*=}; opt=${opt%%=*}; shift ;;
       --*) [ $# -ge 2 ] || die "$opt 缺少参数值"; val=$2; shift 2 ;;
@@ -94,6 +100,7 @@ parse_args() {
       --bbr) BBR_MODE=$val ;;
       --passwd) [ -n "$val" ] || die "root 密码不能为空"; ROOT_PASSWORD=$val; ROOT_LOGIN=yes ;;
       --key|--ssh-key) SSH_KEYS+=("$val") ;;
+      --user-del) USER_DEL+=("$val") ;;
       --timezone) TIMEZONE=$val ;;
       --dns) read -r -a list <<<"${val//,/ }"; DNS_SERVERS+=(${list[@]+"${list[@]}"}) ;;
       *) die "未知参数: $opt（见 --help）" ;;
@@ -557,25 +564,85 @@ root_can_login() {
   [ "$permit" = yes ] && grep -q '^passwordauthentication yes' <<<"$cfg" && [ "$(passwd -S root | awk '{ print $2 }')" = P ]
 }
 
+login_user() { printf '%s' "${SUDO_USER:-$(logname 2>/dev/null || true)}"; }
+
+# 默认 N：只有明确输入 y 才返回成功
+ask_yes() {
+  local reply=""
+  read -r -p "$1 [y/N]: " reply </dev/tty || true
+  case "$reply" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
+}
+
+delete_user() {
+  local user=$1
+  # -f：当前会话可能正是以该用户登录的，不加会因其有进程在运行而拒绝删除
+  userdel -rf "$user" 2>/dev/null || true
+  if id "$user" >/dev/null 2>&1; then warn "删除用户 $user 失败"; return 1; fi
+  # cloud-init 为默认用户写的免密 sudo 规则，一并清掉，避免日后同名用户自动获得 sudo
+  if [ -f /etc/sudoers.d/90-cloud-init-users ]; then sed -i "/^$user[[:space:]]/d" /etc/sudoers.d/90-cloud-init-users; fi
+  info "已删除用户 $user 及其家目录"
+  if [ "$user" = "$(login_user)" ]; then warn "删除的是当前登录用户：当前会话还能用，断开后请改用 root 登录"; fi
+}
+
+# -y 模式：只删云镜像默认用户，且要求 root 能登录
 remove_default_users() {
-  local user removed=0
+  local user
   if [ ${#SSH_KEYS[@]} -eq 0 ] && [ -z "$ROOT_PASSWORD" ] && [ "$ROOT_LOGIN" != yes ]; then return 0; fi
   if [ "$SSH_CONFIRMED" -eq 0 ] || [ "$SSHD_RESTART_FAILED" -eq 1 ] || ! root_can_login; then
-    warn "未确认 root 可以登录，保留系统默认用户；确认后可手动执行 userdel -r 用户名"
+    warn "未确认 root 可以登录，保留系统默认用户；确认后可用 --user-del 删除"
     return 0
   fi
   for user in "${DEFAULT_USERS[@]}"; do
     # UID < 1000 的是系统账号，不动
     if ! id "$user" >/dev/null 2>&1 || [ "$(id -u "$user")" -lt 1000 ]; then continue; fi
-    # -f：当前会话可能正是以该用户登录的，不加会因其有进程在运行而拒绝删除
-    userdel -rf "$user" 2>/dev/null || true
-    if id "$user" >/dev/null 2>&1; then warn "删除默认用户 $user 失败"; continue; fi
-    # cloud-init 为默认用户写的免密 sudo 规则，一并清掉，避免日后同名用户自动获得 sudo
-    if [ -f /etc/sudoers.d/90-cloud-init-users ]; then sed -i "/^$user[[:space:]]/d" /etc/sudoers.d/90-cloud-init-users; fi
-    info "已删除默认用户 $user 及其家目录"
-    removed=1
+    delete_user "$user" || true
   done
-  if [ "$removed" -eq 1 ]; then warn "默认用户已删除：当前会话结束后请改用 root 登录"; fi
+}
+
+# 交互模式：列出非系统用户逐个询问
+prompt_remove_users() {
+  local users=() user line
+  mapfile -t users < <(awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' /etc/passwd)
+  if [ ${#users[@]} -eq 0 ]; then return 0; fi
+  # 本次改了 SSH，说明登录方式变了；没确认成功就不能删
+  if { [ -n "$SSHD_BACKUP" ] || [ ${#SSH_KEYS[@]} -gt 0 ]; } && [ "$SSH_CONFIRMED" -eq 0 ]; then
+    warn "未确认 root 可以登录，跳过删除用户；确认后可用 --user-del 删除"
+    return 0
+  fi
+  if [ "$SSHD_RESTART_FAILED" -eq 1 ] || ! root_can_login; then
+    warn "按 sshd 配置 root 目前无法登录，跳过删除用户"
+    return 0
+  fi
+
+  echo
+  info "以下是非系统用户，可选择删除（默认不删除）："
+  for user in "${users[@]}"; do
+    line="  $user（UID $(id -u "$user")，$(getent passwd "$user" | cut -d: -f6)）"
+    if [ "$user" = "$(login_user)" ]; then line+=" ← 当前登录"; fi
+    echo "$line"
+  done
+  if [ "$SSH_CONFIRMED" -eq 0 ]; then warn "本次没有用新窗口验证过 root 登录，删除前请先确认 root 能登录"; fi
+  for user in "${users[@]}"; do
+    if ask_yes "删除用户 $user 及其家目录？"; then delete_user "$user" || true; fi
+  done
+}
+
+# --user-del：只删除指定用户，不做其他设置
+user_del_only() {
+  local user can_ask=1
+  if [ "$INTERACTIVE" -eq 1 ] && ! { : </dev/tty; } 2>/dev/null; then can_ask=0; fi
+  for user in "${USER_DEL[@]}"; do
+    if ! id "$user" >/dev/null 2>&1; then warn "用户 $user 不存在"; continue; fi
+    if [ "$(id -u "$user")" -lt 1000 ] || [ "$(id -u "$user")" -ge 60000 ]; then warn "$user 是系统账号，不删除"; continue; fi
+    info "用户 $user（UID $(id -u "$user")，家目录 $(getent passwd "$user" | cut -d: -f6)）"
+    if [ "$user" = "$(login_user)" ]; then warn "$user 是当前登录用户，删除后断开就无法再用它登录"; fi
+    if ! root_can_login; then warn "按 sshd 配置，root 目前无法通过 SSH 登录；删除后可能无法再登录这台机器"; fi
+    if [ "$INTERACTIVE" -eq 1 ]; then
+      if [ "$can_ask" -eq 0 ]; then warn "没有可用终端，无法确认，未删除 $user（确定要删除请加 -y）"; continue; fi
+      if ! ask_yes "确认删除用户 $user 及其家目录？"; then info "已取消，保留 $user"; continue; fi
+    fi
+    delete_user "$user" || true
+  done
 }
 
 install_docker() {
@@ -596,6 +663,7 @@ install_docker() {
 main() {
   parse_args "$@"
   ensure_root "$@"
+  if [ ${#USER_DEL[@]} -gt 0 ]; then user_del_only; return 0; fi
   detect_os
   local i
   if command -v sshd >/dev/null 2>&1; then
@@ -621,7 +689,9 @@ main() {
   if [ ${#SSH_KEYS[@]} -gt 0 ]; then add_ssh_keys; fi
   setup_sshd
   confirm_ssh_access
-  if [ "$REMOVE_DEFAULT_USERS" -eq 1 ]; then remove_default_users; fi
+  if [ "$REMOVE_DEFAULT_USERS" -eq 1 ]; then
+    if [ "$INTERACTIVE" -eq 1 ]; then prompt_remove_users; else remove_default_users; fi
+  fi
 
   info "初始化完成"
   if [ -n "$SSH_PORT" ] && [ "$SSH_CONFIRMED" -eq 0 ]; then
