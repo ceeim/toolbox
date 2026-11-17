@@ -76,7 +76,7 @@ SSH 配置自动还原。
   init.sh --port 2222 --passwd 'p@$$w0rd!&' \
           --key 'ssh-ed25519 AAAAC3... me@host' --dns '8.8.8.8,2001:4860:4860::8888'
 
-默认用户指 debian、ubuntu、ec2-user 等云镜像自带账号。删除用户时连同家目录。
+默认用户指 debian、ubuntu、ec2-user 等云镜像自带账号。删除用户时连同 /home 下的用户目录一起删除。
 出口 IP 位于中国大陆时软件源改为中科大镜像。
 EOF
 }
@@ -174,9 +174,9 @@ collect_input() {
       read -r -p "是否安装 Docker（内存 $(mem_mb)MB 不足 1GB，不建议）[y/N]: " reply </dev/tty
       reply=${reply:-n}
     fi
-    case "$reply" in
-      y|Y|yes) INSTALL_DOCKER=yes ;;
-      n|N|no) INSTALL_DOCKER=no ;;
+    case "${reply,,}" in
+      y|yes) INSTALL_DOCKER=yes ;;
+      n|no) INSTALL_DOCKER=no ;;
       *) warn "请输入 y 或 n" ;;
     esac
   done
@@ -194,10 +194,10 @@ collect_ssh_input() {
 
   while [ -z "$ROOT_LOGIN" ]; do
     read -r -p "是否开启 root 密码登录 [y 开启 / n 关闭 / 回车保持现状]: " reply </dev/tty
-    case "$reply" in
+    case "${reply,,}" in
       "") break ;;
-      y|Y|yes) ROOT_LOGIN=yes ;;
-      n|N|no) ROOT_LOGIN=no ;;
+      y|yes) ROOT_LOGIN=yes ;;
+      n|no) ROOT_LOGIN=no ;;
       *) warn "请输入 y 或 n" ;;
     esac
   done
@@ -536,8 +536,8 @@ confirm_ssh_access() {
   echo
 
   if [ "$timer" -eq 1 ]; then systemctl stop "$ROLLBACK_UNIT.timer" 2>/dev/null || true; fi
-  case "$reply" in
-    y|Y|yes)
+  case "${reply,,}" in
+    y|yes)
       SSH_CONFIRMED=1
       rm -f "$ROLLBACK_SCRIPT"
       info "已确认 root 可以登录" ;;
@@ -570,17 +570,20 @@ login_user() { printf '%s' "${SUDO_USER:-$(logname 2>/dev/null || true)}"; }
 ask_yes() {
   local reply=""
   read -r -p "$1 [y/N]: " reply </dev/tty || true
-  case "$reply" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
+  case "${reply,,}" in y|yes) return 0 ;; *) return 1 ;; esac
 }
 
+home_of() { getent passwd "$1" | cut -d: -f6; }
+
 delete_user() {
-  local user=$1
+  local user=$1 home
+  home=$(home_of "$user")
   # -f：当前会话可能正是以该用户登录的，不加会因其有进程在运行而拒绝删除
   userdel -rf "$user" 2>/dev/null || true
   if id "$user" >/dev/null 2>&1; then warn "删除用户 $user 失败"; return 1; fi
   # cloud-init 为默认用户写的免密 sudo 规则，一并清掉，避免日后同名用户自动获得 sudo
   if [ -f /etc/sudoers.d/90-cloud-init-users ]; then sed -i "/^$user[[:space:]]/d" /etc/sudoers.d/90-cloud-init-users; fi
-  info "已删除用户 $user 及其家目录"
+  info "已删除用户 $user 及 $home"
   if [ "$user" = "$(login_user)" ]; then warn "删除的是当前登录用户：当前会话还能用，断开后请改用 root 登录"; fi
 }
 
@@ -617,13 +620,13 @@ prompt_remove_users() {
   echo
   info "以下是非系统用户，可选择删除（默认不删除）："
   for user in "${users[@]}"; do
-    line="  $user（UID $(id -u "$user")，$(getent passwd "$user" | cut -d: -f6)）"
+    line="  $user（UID $(id -u "$user")，$(home_of "$user")）"
     if [ "$user" = "$(login_user)" ]; then line+=" ← 当前登录"; fi
     echo "$line"
   done
   if [ "$SSH_CONFIRMED" -eq 0 ]; then warn "本次没有用新窗口验证过 root 登录，删除前请先确认 root 能登录"; fi
   for user in "${users[@]}"; do
-    if ask_yes "删除用户 $user 及其家目录？"; then delete_user "$user" || true; fi
+    if ask_yes "删除用户 $user 及 $(home_of "$user")？"; then delete_user "$user" || true; fi
   done
 }
 
@@ -634,12 +637,12 @@ user_del_only() {
   for user in "${USER_DEL[@]}"; do
     if ! id "$user" >/dev/null 2>&1; then warn "用户 $user 不存在"; continue; fi
     if [ "$(id -u "$user")" -lt 1000 ] || [ "$(id -u "$user")" -ge 60000 ]; then warn "$user 是系统账号，不删除"; continue; fi
-    info "用户 $user（UID $(id -u "$user")，家目录 $(getent passwd "$user" | cut -d: -f6)）"
+    info "用户 $user（UID $(id -u "$user")，$(home_of "$user")）"
     if [ "$user" = "$(login_user)" ]; then warn "$user 是当前登录用户，删除后断开就无法再用它登录"; fi
     if ! root_can_login; then warn "按 sshd 配置，root 目前无法通过 SSH 登录；删除后可能无法再登录这台机器"; fi
     if [ "$INTERACTIVE" -eq 1 ]; then
       if [ "$can_ask" -eq 0 ]; then warn "没有可用终端，无法确认，未删除 $user（确定要删除请加 -y）"; continue; fi
-      if ! ask_yes "确认删除用户 $user 及其家目录？"; then info "已取消，保留 $user"; continue; fi
+      if ! ask_yes "确认删除用户 $user 及 $(home_of "$user")？"; then info "已取消，保留 $user"; continue; fi
     fi
     delete_user "$user" || true
   done
