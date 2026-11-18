@@ -576,13 +576,18 @@ ask_yes() {
 home_of() { getent passwd "$1" | cut -d: -f6; }
 
 delete_user() {
-  local user=$1 home
+  local user=$1 home f
   home=$(home_of "$user")
   # -f：当前会话可能正是以该用户登录的，不加会因其有进程在运行而拒绝删除
   userdel -rf "$user" 2>/dev/null || true
   if id "$user" >/dev/null 2>&1; then warn "删除用户 $user 失败"; return 1; fi
   # cloud-init 为默认用户写的免密 sudo 规则，一并清掉，避免日后同名用户自动获得 sudo
-  if [ -f /etc/sudoers.d/90-cloud-init-users ]; then sed -i "/^$user[[:space:]]/d" /etc/sudoers.d/90-cloud-init-users; fi
+  f=/etc/sudoers.d/90-cloud-init-users
+  if [ -f "$f" ]; then
+    sed -i "/^$user[[:space:]]/d; /^# User rules for $user\$/d" "$f"
+    # 只剩注释时整个文件删掉
+    if ! grep -qv '^[[:space:]]*\(#\|$\)' "$f"; then rm -f "$f"; fi
+  fi
   info "已删除用户 $user 及 $home"
   if [ "$user" = "$(login_user)" ]; then warn "删除的是当前登录用户：当前会话还能用，断开后请改用 root 登录"; fi
 }
